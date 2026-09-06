@@ -83,47 +83,147 @@ def _get_page_with_retry(session: requests.Session, date_str: str, page: int) ->
     raise last_err
 
 
-def fetch_full_day(target_date, workers: int = DEFAULT_WORKERS, verbose: bool = False) -> dict:
-    """Fetch every floorsheet row for one date, using threaded pagination.
-
-    Returns: {"date": "YYYY-M-D", "records": [...], "meta": {...}, "elapsed": float}
-    Raises OutOfRangeDateError if the API's businessDate doesn't match what
-    was requested (silent substitution for out-of-range dates).
+def fetch_full_day(
+    target_date,
+    workers: int = DEFAULT_WORKERS,
+    verbose: bool = False
+) -> dict:
     """
+    Fetch every floorsheet row for one date using threaded pagination.
+
+    Returns:
+        {
+            "date": "YYYY-M-D",
+            "records": [...],
+            "meta": {...},
+            "elapsed": float
+        }
+
+    Raises:
+        OutOfRangeDateError if the API returns a different business date.
+    """
+
     date_str = format_date(target_date)
+
     session = requests.Session()
+
     t0 = time.time()
 
     first = _get_page_with_retry(session, date_str, 1)
+
     total_items = first["totalItems"]
     total_pages = first["totalPages"]
-    meta = {k: first[k] for k in ("totalAmount", "totalQty", "totalTrades", "totalItems")}
+
+    meta = {
+        k: first[k]
+        for k in (
+            "totalAmount",
+            "totalQty",
+            "totalTrades",
+            "totalItems",
+        )
+    }
 
     if total_items == 0:
-        return {"date": date_str, "records": [], "meta": meta, "elapsed": time.time() - t0}
+        if verbose:
+            print(
+                f"[{to_iso(date_str)}] no trades",
+                flush=True,
+            )
+
+        return {
+            "date": date_str,
+            "records": [],
+            "meta": meta,
+            "elapsed": time.time() - t0,
+        }
 
     seen_date = first["content"][0]["businessDate"][:10]
+
     requested_iso = to_iso(date_str)
+
     if seen_date != requested_iso:
         raise OutOfRangeDateError(
-            f"Requested {requested_iso} but API returned businessDate={seen_date} "
-            f"— date is outside the available range, or the API substituted a fallback date."
+            f"Requested {requested_iso} but API returned "
+            f"businessDate={seen_date} — date is outside "
+            f"the available range, or the API substituted "
+            f"a fallback date."
         )
 
     records = list(first["content"])
 
-    if total_pages > 1:
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            futures = {ex.submit(_get_page_with_retry, session, date_str, p): p
-                       for p in range(2, total_pages + 1)}
-            done = 0
-            for fut in as_completed(futures):
-                records.extend(fut.result()["content"])
-                done += 1
-                if verbose and done % 50 == 0:
-                    print(f"  ...{done}/{total_pages - 1} pages")
+    if verbose:
+        print(
+            f"[{requested_iso}] starting: "
+            f"{total_items:,} records, "
+            f"{total_pages:,} pages, "
+            f"{workers} workers",
+            flush=True,
+        )
 
-    return {"date": date_str, "records": records, "meta": meta, "elapsed": time.time() - t0}
+    if total_pages > 1:
+
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+
+            futures = {
+                ex.submit(
+                    _get_page_with_retry,
+                    session,
+                    date_str,
+                    p
+                ): p
+                for p in range(2, total_pages + 1)
+            }
+
+            done = 1
+            last_reported = 1
+
+            for fut in as_completed(futures):
+
+                page_data = fut.result()
+
+                records.extend(page_data["content"])
+
+                done += 1
+
+                if verbose and (
+                    done - last_reported >= 50
+                    or done == total_pages
+                ):
+                    elapsed = time.time() - t0
+
+                    percent = (
+                        done / total_pages * 100
+                        if total_pages
+                        else 100
+                    )
+
+                    print(
+                        f"[{requested_iso}] "
+                        f"pages {done:,}/{total_pages:,} "
+                        f"({percent:5.1f}%) "
+                        f"records {len(records):,} "
+                        f"elapsed {elapsed:.1f}s",
+                        flush=True,
+                    )
+
+                    last_reported = done
+
+    elapsed = time.time() - t0
+
+    if verbose:
+        print(
+            f"[{requested_iso}] download complete: "
+            f"{len(records):,} records in {elapsed:.1f}s",
+            flush=True,
+        )
+
+    return {
+        "date": date_str,
+        "records": records,
+        "meta": meta,
+        "elapsed": elapsed,
+    }
 
 
 def check_completeness(result: dict) -> tuple[bool, list[str]]:
