@@ -1,0 +1,66 @@
+name: Historical Floorsheet Backfill
+
+# Manual only — trigger for bounded chunks (e.g. one calendar year at a time)
+# to keep commit sizes and request volume reasonable.
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Start date YYYY-MM-DD"
+        required: true
+      end_date:
+        description: "End date YYYY-MM-DD"
+        required: true
+      workers:
+        description: "Concurrent requests per day"
+        default: "10"
+      skip_existing:
+        description: "Skip dates that already have a parquet file"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: historical-scrape
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300  # ceiling so a mistyped huge range can't burn the whole quota
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run historical backfill
+        run: |
+          SKIP_FLAG=""
+          if [ "${{ github.event.inputs.skip_existing }}" = "true" ]; then
+            SKIP_FLAG="--skip-existing"
+          fi
+          python scripts/scrape_historical.py \
+            --start "${{ github.event.inputs.start_date }}" \
+            --end "${{ github.event.inputs.end_date }}" \
+            --workers "${{ github.event.inputs.workers }}" \
+            $SKIP_FLAG
+
+      - name: Commit backfilled data (single commit for the whole run)
+        run: |
+          git config user.name "floorsheet-bot"
+          git config user.email "actions@github.com"
+          git add data/
+          git add backfill_failures.txt 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Backfill floorsheet: ${{ github.event.inputs.start_date }} to ${{ github.event.inputs.end_date }}"
+            git push
+          fi
