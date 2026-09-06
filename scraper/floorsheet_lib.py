@@ -176,6 +176,6 @@ def records_to_parquet(records: list, out_path: str):
                 df[col] = df[col].astype("category")
         for col in ("businessDate", "tradeTime"):
             if col in df.columns:
-                df[col] = pd.to_datetime(df[col])
+                df[col] = pd.to_datetime(df[col], format="mixed", utc=True)
     df.to_parquet(out_path, compression="zstd", index=False)
     return df
