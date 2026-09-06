@@ -156,7 +156,7 @@ def check_completeness(result: dict) -> tuple[bool, list[str]]:
 
 def is_nepse_trading_day(d: date) -> bool:
     """NEPSE trades Sunday-Thursday; Friday and Saturday are the weekend."""
-    return d.weekday() not in (4, 5)  # Friday=4, Saturday=5
+    return d.weekday() not in (5)  # Friday=4, Saturday=5
 
 
 def daterange(start: date, end: date):
