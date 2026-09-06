@@ -1,0 +1,52 @@
+name: Daily Floorsheet Scrape
+
+on:
+  schedule:
+    # 10:00 UTC = 15:45 Nepal time (NPT is UTC+5:45). NEPSE closes 15:00 NPT,
+    # so this runs ~45 min after close.
+    - cron: "0 10 * * 0,1,2,3,4,5"   # Sun-Thu UTC, matching NEPSE's Sun-Thu trading week
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Specific date to (re)scrape, YYYY-MM-DD (optional)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run daily scraper
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            python scripts/scrape_daily.py --date "${{ github.event.inputs.date }}"
+          else
+            python scripts/scrape_daily.py
+          fi
+
+      - name: Commit if there's new data
+        run: |
+          git config user.name "floorsheet-bot"
+          git config user.email "actions@github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Daily floorsheet: $(date -u +'%Y-%m-%d')"
+            git push
+          fi
