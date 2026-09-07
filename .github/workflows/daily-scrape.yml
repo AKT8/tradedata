@@ -4,7 +4,8 @@ on:
   schedule:
     # 10:00 UTC = 15:45 Nepal time (NPT is UTC+5:45). NEPSE closes 15:00 NPT,
     # so this runs ~45 min after close.
-    - cron: "0 10 * * 0,1,2,3,4,5"   # Sun-Thu UTC, matching NEPSE's Sun-Thu trading week
+    - cron: "0 10 * * 0,1,2,3,4,5"   # Sun-Fri UTC, matching NEPSE's Sun-Fri trading week
+    - cron: "15 14 * * *"
   workflow_dispatch:
     inputs:
       date:
