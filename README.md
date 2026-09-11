@@ -3,7 +3,7 @@
 Daily NEPSE floorsheet data from sharehubnepal.com, stored as one
 Parquet file per trading day under `data/<year>/<YYYY-MM-DD>.parquet`.
 
-## API facts this scraper relies on (verified by hand)
+## API facts this scraper relies on 
 
 - `Size` is hard-capped at **100** rows per request regardless of what's requested.
 - The pagination query param is **`page`** (lowercase) — every other candidate
@@ -13,7 +13,7 @@ Parquet file per trading day under `data/<year>/<YYYY-MM-DD>.parquet`.
   a *different* date's data. The scraper checks the returned `businessDate`
   against the requested date on every fetch and raises `OutOfRangeDateError`
   if they don't match, rather than silently saving mislabeled data.
-- Weekends (Fri/Sat, NEPSE's weekend) and not-yet-traded dates return
+- Weekends (Sat, NEPSE's weekend) and not-yet-traded dates return while crons run 6 days twice
   `totalItems: 0`.
 
 ## Setup
@@ -51,14 +51,4 @@ df = con.execute("""
     SELECT * FROM read_parquet('data/*/*.parquet')
     WHERE symbol = 'NABIL' AND businessDate = '2026-08-27'
 """).df()
-```
-
-Or directly from GitHub without cloning:
-
-```python
-df = con.execute("""
-    SELECT * FROM read_parquet(
-        'https://huggingface.co/datasets/you/nepse-floorsheet/resolve/main/data/*/*.parquet'
-    )
-""").df()  # if you mirror the repo to Hugging Face for glob support
 ```
