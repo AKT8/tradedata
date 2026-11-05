@@ -1,11 +1,14 @@
+
 name: Daily Floorsheet Scrape
 
 on:
   schedule:
-    # 10:00 UTC = 15:45 Nepal time (NPT is UTC+5:45). NEPSE closes 15:00 NPT,
-    # so this runs ~45 min after close.
-    - cron: "0 10 * * 0,1,2,3,4,5"   # Sun-Fri UTC, matching NEPSE's Sun-Fri trading week
+    # 10:00 UTC = 15:45 NPT
+    - cron: "0 10 * * 0,1,2,3,4,5"
+
+    # 14:15 UTC = 20:00 NPT
     - cron: "15 14 * * *"
+
   workflow_dispatch:
     inputs:
       date:
@@ -23,8 +26,35 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     steps:
       - uses: actions/checkout@v4
+
+      # DIAGNOSTICS
+      - name: Diagnose execution time
+        run: |
+          echo "=================================="
+          echo "WORKFLOW EXECUTION DIAGNOSTICS"
+          echo "=================================="
+
+          echo "Event type: ${{ github.event_name }}"
+          echo "Scheduled cron: ${{ github.event.schedule }}"
+          echo "Workflow run ID: ${{ github.run_id }}"
+          echo "Workflow attempt: ${{ github.run_attempt }}"
+
+          echo ""
+          echo "Actual runner start (UTC):"
+          date -u '+%Y-%m-%d %H:%M:%S UTC'
+
+          echo ""
+          echo "Actual runner start (Nepal):"
+          TZ=Asia/Kathmandu date '+%Y-%m-%d %H:%M:%S NPT'
+
+          echo ""
+          echo "Workflow event timestamp:"
+          echo "${{ github.event.head_commit.timestamp }}"
+
+          echo "=================================="
 
       - uses: actions/setup-python@v5
         with:
