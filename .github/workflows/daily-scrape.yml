@@ -3,11 +3,11 @@ name: Daily Floorsheet Scrape
 
 on:
   schedule:
-    # 10:00 UTC = 15:45 NPT
-    - cron: "0 10 * * 0,1,2,3,4,5"
+    # 9:45 UTC = 15:30 NPT
+    - cron: "45 9 * * 0,1,2,3,4,5"
 
-    # 14:15 UTC = 20:00 NPT
-    - cron: "15 14 * * *"
+    # 4:45 UTC = 10:30 NPT
+    - cron: "45 4 * * *"
 
   workflow_dispatch:
     inputs:
